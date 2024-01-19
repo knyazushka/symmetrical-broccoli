@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Contracts\Repository\ProductRepositoryContract;
 use App\Models\Product;
 use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 
 final class ProductRepository implements ProductRepositoryContract
 {
@@ -12,21 +13,18 @@ final class ProductRepository implements ProductRepositoryContract
     {
         $model = Product::query();
 
-        foreach ($filter as $key => $value) {
-            if ($key === 0) {
-                $model->whereJsonContains(
-                    column: 'properties->' . $key,
-                    value: array_values($value),
-                );
-            } else {
-                foreach ($value as $item) {
-                    $model->orWhereJsonContains(
-                        column: 'properties->' . $key,
-                        value: $item,
-                    );
-                }
-            }
+        $productIds = DB::table('product_properties')
+            ->select('product_id')
+            ->leftJoin('properties', 'properties.id', '=', 'product_properties.property_id')
+            ->whereIn('properties.name', array_keys($filter));
+
+        foreach (array_values($filter) as $value => $item) {
+            $productIds->whereIn('value', $item);
         }
+
+        $productIds->pluck('product_id');
+
+        $model->whereIn('id', $productIds);
 
         return $model->simplePaginate(
             perPage: 40,
