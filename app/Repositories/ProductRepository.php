@@ -5,7 +5,7 @@ namespace App\Repositories;
 use App\Contracts\Repository\ProductRepositoryContract;
 use App\Models\Product;
 use Illuminate\Contracts\Pagination\Paginator;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Query\Builder;
 
 final class ProductRepository implements ProductRepositoryContract
 {
@@ -13,18 +13,14 @@ final class ProductRepository implements ProductRepositoryContract
     {
         $model = Product::query();
 
-        $productIds = DB::table('product_properties')
-            ->select('product_id')
-            ->leftJoin('properties', 'properties.id', '=', 'product_properties.property_id')
-            ->whereIn('properties.name', array_keys($filter));
-
-        foreach (array_values($filter) as $value => $item) {
-            $productIds->whereIn('value', $item);
-        }
-
-        $productIds->pluck('product_id');
-
-        $model->whereIn('id', $productIds);
+        $model->whereIn('id', function (Builder $q) use ($filter) {
+            $q->select('product_id')->from('product_properties')
+                ->leftJoin('properties', 'properties.id', '=', 'product_properties.property_id')
+                ->whereIn('properties.name', array_keys($filter));
+            foreach (array_values($filter) as $value => $item) {
+                $q->whereIn('value', $item);
+            }
+        });
 
         return $model->simplePaginate(
             perPage: 40,
